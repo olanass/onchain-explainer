@@ -2,8 +2,8 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Olanas Onchain Explainer",
-    "version": "1.0.0",
-    "description": "Explain Robinhood Chain mainnet transactions using RPC receipts and standard ABI decoding. Read-only: never signs, sends, or simulates transactions. Internal calls, ERC-1155 and arbitrary ABIs are not decoded. Token events are contract-reported evidence, not verified balance deltas."
+    "version": "1.1.0",
+    "description": "Explain Robinhood Chain mainnet transactions using RPC receipts, standard ABI decoding, and a known RobinhoodBurner ABI. Read-only: never signs, sends, or simulates transactions. Internal calls, ERC-1155 and arbitrary ABIs are not decoded. Current token metadata may be used when historical state is unavailable and is labeled as such. Token events are contract-reported evidence, not verified balance deltas."
   },
   "paths": {
     "/v1/transactions/explain": {
@@ -44,7 +44,7 @@
       "Explanation": {
         "type": "object", "required": ["schemaVersion", "chain", "transactionHash", "status", "explanation", "events", "coverage", "warnings"],
         "properties": {
-          "schemaVersion": { "type": "string", "enum": ["1.0"] },
+          "schemaVersion": { "type": "string", "enum": ["1.1"] },
           "chain": { "type": "object", "properties": { "id": { "type": "integer", "enum": [4663] }, "name": { "type": "string" }, "nativeCurrency": { "type": "string" } } },
           "transactionHash": { "type": "string" }, "explorerUrl": { "type": "string", "format": "uri" },
           "fetchedAt": { "type": "string", "format": "date-time" }, "requestId": { "type": "string" },
@@ -56,9 +56,11 @@
           "fee": { "type": "object", "nullable": true, "properties": { "gasUsed": { "type": "string" }, "effectiveGasPriceWei": { "type": "string" }, "amountWei": { "type": "string" }, "amountEth": { "type": "string" }, "calculation": { "type": "string" } } },
           "nativeValue": { "type": "object", "properties": { "rawAmount": { "type": "string" }, "amount": { "type": "string" }, "symbol": { "type": "string" }, "effect": { "type": "string", "enum": ["not_confirmed", "executed_top_level_value", "reverted"] }, "scope": { "type": "string" } } },
           "contractCreated": { "type": "string", "nullable": true },
-          "input": { "type": "object", "nullable": true, "description": "Standard selector candidate only; no verified arbitrary contract ABI.", "properties": { "selector": { "type": "string" }, "decoded": { "type": "boolean" }, "candidateFunction": { "type": "string" }, "arguments": { "type": "array", "items": { "type": "object" } }, "interpretation": { "type": "string" } } },
-          "events": { "type": "array", "items": { "type": "object", "required": ["type", "contract", "logIndex", "evidence"], "properties": { "type": { "type": "string", "enum": ["erc20_transfer", "erc20_approval", "erc721_transfer", "erc721_approval", "operator_approval"] }, "contract": { "type": "string" }, "logIndex": { "type": "string" }, "evidence": { "type": "string" }, "rawAmount": { "type": "string" }, "rawAllowance": { "type": "string" }, "amount": { "type": "string" }, "allowance": { "type": "string" }, "symbol": { "type": "string", "nullable": true }, "decimals": { "type": "integer", "nullable": true }, "from": { "type": "string" }, "to": { "type": "string" }, "owner": { "type": "string" }, "spender": { "type": "string" }, "operator": { "type": "string" }, "approved": { "type": "boolean" }, "unlimited": { "type": "boolean" }, "tokenId": { "type": "string" } } } },
-          "tokenMetadata": { "type": "array", "items": { "type": "object" } },
+          "input": { "type": "object", "nullable": true, "description": "Standard selector candidate or known RobinhoodBurner ABI; calldata alone does not prove effects.", "properties": { "selector": { "type": "string" }, "decoded": { "type": "boolean" }, "candidateFunction": { "type": "string" }, "source": { "type": "string" }, "arguments": { "type": "array", "items": { "type": "object" } }, "interpretation": { "type": "string" } } },
+          "transactionType": { "type": "string", "nullable": true, "enum": ["token_burn_to_dead_address", null], "description": "Set only when known burner calldata, Burned event, and token transfer to the dead address agree." },
+          "burn": { "type": "object", "nullable": true, "description": "Matched burn evidence. supplyEffect is not_verified because a transfer to the dead address does not prove totalSupply decreased.", "properties": { "burner": { "type": "string" }, "token": { "type": "string" }, "destination": { "type": "string" }, "burnId": { "type": "string" }, "rawAmount": { "type": "string" }, "amount": { "type": "string", "nullable": true }, "symbol": { "type": "string", "nullable": true }, "decimals": { "type": "integer", "nullable": true }, "supplyEffect": { "type": "string", "enum": ["not_verified"] }, "evidence": { "type": "array", "items": { "type": "string" } } } },
+          "events": { "type": "array", "items": { "type": "object", "required": ["type", "contract", "logIndex", "evidence"], "properties": { "type": { "type": "string", "enum": ["erc20_transfer", "erc20_approval", "erc721_transfer", "erc721_approval", "operator_approval", "robinhood_burner_burned"] }, "contract": { "type": "string" }, "logIndex": { "type": "string" }, "evidence": { "type": "string" }, "rawAmount": { "type": "string" }, "rawAllowance": { "type": "string" }, "amount": { "type": "string" }, "allowance": { "type": "string" }, "symbol": { "type": "string", "nullable": true }, "decimals": { "type": "integer", "nullable": true }, "from": { "type": "string" }, "to": { "type": "string" }, "owner": { "type": "string" }, "spender": { "type": "string" }, "operator": { "type": "string" }, "approved": { "type": "boolean" }, "unlimited": { "type": "boolean" }, "tokenId": { "type": "string" }, "id": { "type": "string" }, "burner": { "type": "string" }, "token": { "type": "string" } } } },
+          "tokenMetadata": { "type": "array", "description": "Each symbol and decimals value reports whether it came from the historical block or a current-state fallback.", "items": { "type": "object" } },
           "coverage": { "type": "object", "properties": { "receiptLogs": { "type": "integer" }, "decodedLogs": { "type": "integer" }, "omittedLogs": { "type": "integer" }, "internalTransfers": { "type": "boolean" }, "arbitraryContractAbi": { "type": "boolean" }, "currentAllowances": { "type": "boolean" } } },
           "warnings": { "type": "array", "items": { "type": "string" } }, "explanation": { "type": "string" }
         }
