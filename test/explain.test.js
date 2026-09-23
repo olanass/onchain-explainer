@@ -97,4 +97,16 @@ test('operator approvals and contract deployment have explicit representations',
   assert.equal(result.events[0].approved, false);
   assert.equal(result.events[0].type, 'operator_approval');
 });
+test('mixed event standards at one contract do not apply fungible metadata to NFTs or operators', async () => {
+  const result = await explain(request, fixture({ receipt: { logs: [
+    event('Transfer', [FROM, TO, 1000000n]),
+    { address: TOKEN, topics: [id('Transfer(address,address,uint256)'), zeroPadValue(FROM, 32), zeroPadValue(TO, 32), word(42)], data: '0x', logIndex: '0x1' },
+    event('ApprovalForAll', [FROM, TO, true], 2)
+  ] } }));
+  assert.equal(result.events[0].amount, '1.0');
+  assert.equal(result.events[1].tokenId, '42');
+  assert.equal(result.events[1].decimals, undefined);
+  assert.equal(result.events[2].approved, true);
+  assert.equal(result.events[2].allowance, undefined);
+});
 module.exports = { fixture, HASH };
