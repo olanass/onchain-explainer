@@ -7,7 +7,7 @@ const vm = require('node:vm');
 const { webcrypto, createHash } = require('node:crypto');
 const spec = require('../public/openapi.json');
 const creator = '0x2ab4e66D85B1df361a2d51Fd20456c4330EF9AB5';
-async function browserFixture({ account = creator, existing = false } = {}) {
+async function browserFixture({ account = creator, existing = false, description = 'Explain any transaction on the Robinhood Chain.' } = {}) {
   const elements = new Map();
   const element = key => {
     if (!elements.has(key)) elements.set(key, { value: '0', checked: true, hidden: true, events: {}, addEventListener(name, fn) { this.events[name] = fn; }, replaceChildren() {} });
@@ -19,7 +19,7 @@ async function browserFixture({ account = creator, existing = false } = {}) {
     if (method === 'personal_sign') { signedMessage = Buffer.from(params[0].slice(2), 'hex').toString(); return 'test-signature'; }
     throw new Error('Unexpected wallet method');
   } };
-  const service = { name: 'Olanas Onchain Explainer', slug: 'olanas-onchain-explainer', price: '10', currency: 'OLANAS', gatewayUrl: 'https://olanas.xyz/x402/olanas-onchain-explainer' };
+  const service = { name: 'Olanas Onchain Explainer', description, slug: 'olanas-onchain-explainer', price: '10', currency: 'OLANAS', gatewayUrl: 'https://olanas.xyz/x402/olanas-onchain-explainer' };
   const context = { document: { getElementById: element, createElement: () => ({}) }, window: { ethereum: provider, addEventListener() {}, dispatchEvent() {} }, Event: class {}, location: { origin: 'https://explainer.example' }, crypto: webcrypto, TextEncoder,
     fetch: async (url, options) => {
       calls.push({ url, options });
@@ -27,6 +27,9 @@ async function browserFixture({ account = creator, existing = false } = {}) {
       if (url.includes('/creator/')) return { ok: true, json: async () => ({ services: existing ? [service] : [] }) };
       if (url === '/openapi.json') return { ok: true, json: async () => structuredClone(spec) };
       if (url === 'https://olanas.xyz/api/services') return { ok: true, json: async () => ({ service }) };
+      if (url === 'https://olanas.xyz/api/services/' + service.slug && options?.method === 'PATCH') {
+        return { ok: true, json: async () => ({ service: { ...service, ...JSON.parse(options.body).changes } }) };
+      }
       throw new Error('Unexpected URL');
     }
   };
@@ -68,4 +71,15 @@ test('OpenAPI references resolve and the request schema matches the public API',
   visit(spec);
   assert.equal(spec.components.schemas.ExplainRequest.additionalProperties, false);
   assert.deepEqual(spec.components.schemas.ExplainRequest.required, ['transactionHash']);
+});
+test('published listing update signs only the short description and preserves payment terms', async () => {
+  const fixture = await browserFixture({ existing: true, description: 'Old long description' });
+  assert.equal(fixture.element('publish').textContent, 'Sign description update');
+  await fixture.element('publish').events.click();
+  const call = fixture.calls.find(call => call.options?.method === 'PATCH');
+  const posted = JSON.parse(call.options.body);
+  assert.deepEqual(posted.changes, { description: 'Explain any transaction on the Robinhood Chain.' });
+  assert.equal(fixture.signed(), 'x402 manage service\n' + JSON.stringify({ action: 'update', slug: 'olanas-onchain-explainer', changes: posted.changes, timestamp: posted.creatorTimestamp }));
+  assert.equal(fixture.calls.some(call => call.options?.method === 'POST'), false);
+  assert.equal(fixture.element('publish').disabled, true);
 });

@@ -1,7 +1,7 @@
 'use strict';
 const CREATOR = '0x2ab4e66D85B1df361a2d51Fd20456c4330EF9AB5';
 const PLATFORM = 'https://olanas.xyz';
-const DESCRIPTION = 'Explain Robinhood Chain transactions with RPC-backed status, receipt-derived fees, native value, standard ERC-20/ERC-721 transfers and approvals, and plain-language summaries. Returns structured evidence and explicit coverage limits. Read-only; no signing or transaction submission. Internal calls, ERC-1155 and arbitrary contract ABIs are not decoded.';
+const DESCRIPTION = 'Explain any transaction on the Robinhood Chain.';
 const endpoint = location.origin + '/v1/transactions/explain';
 const status = document.getElementById('status'), button = document.getElementById('publish'), select = document.getElementById('wallet');
 const providers = [];
@@ -27,7 +27,15 @@ function showListing(service) {
   status.textContent = 'Published on Olanas. Price: ' + service.price + ' ' + service.currency + '. Gateway: ' + service.gatewayUrl;
   const link = document.getElementById('listing');
   link.href = PLATFORM + '/services/' + encodeURIComponent(service.slug); link.hidden = false;
-  button.disabled = true;
+  const needsUpdate = service.description !== DESCRIPTION;
+  healthy = needsUpdate;
+  button.disabled = !needsUpdate || !document.getElementById('reviewed').checked;
+  if (needsUpdate) {
+    document.getElementById('pageTitle').textContent = 'Update your listing.';
+    document.getElementById('pageIntro').textContent = 'Sign with your creator wallet to replace the published description with the short description below.';
+    button.textContent = 'Sign description update';
+    status.textContent = 'Your listing is live. Review the new description, then sign to update it. The price and payout wallet stay the same.';
+  }
 }
 async function sha256(value) {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
@@ -37,12 +45,27 @@ button.addEventListener('click', async () => {
   button.disabled = true;
   try {
     const existing = await existingListing();
-    if (existing) { showListing(existing); return; }
+    if (existing && existing.description === DESCRIPTION) { showListing(existing); return; }
     const provider = providers[Number(select.value)]?.provider;
     if (!provider) throw new Error('Open this page in a browser with your wallet extension enabled, then refresh.');
     const accounts = await provider.request({ method: 'eth_requestAccounts' });
     const address = accounts[0];
     if (address?.toLowerCase() !== CREATOR.toLowerCase()) throw new Error('Switch your wallet to the Startup Pitch Scorer creator address shown above, then try again.');
+    if (existing) {
+      const changes = { description: DESCRIPTION };
+      const creatorTimestamp = String(Date.now());
+      const message = 'x402 manage service\n' + JSON.stringify({ action: 'update', slug: existing.slug, changes, timestamp: creatorTimestamp });
+      const encoded = '0x' + Array.from(new TextEncoder().encode(message), byte => byte.toString(16).padStart(2, '0')).join('');
+      status.textContent = 'Review and sign the description update in your wallet.';
+      const creatorSignature = await provider.request({ method: 'personal_sign', params: [encoded, address] });
+      const response = await fetch(PLATFORM + '/api/services/' + encodeURIComponent(existing.slug), {
+        method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ changes, creatorTimestamp, creatorSignature })
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'The listing could not be updated.');
+      showListing(result.service);
+      return;
+    }
     const specResponse = await fetch('/openapi.json');
     if (!specResponse.ok) throw new Error('Could not load the API specification.');
     const openapiDocument = await specResponse.json();
