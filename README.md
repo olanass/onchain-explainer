@@ -29,15 +29,16 @@ Request fields are `transactionHash` (required, 32-byte hex) and `chainId` (opti
 
 - `status`: `success`, `reverted`, or `pending`. Missing transactions return 404; an included transaction without a receipt returns a retryable 503.
 - `nativeValue`: top-level transaction value only. For pending/reverted transactions it is not a completed transfer. Even on success, internal forwarding is not traced.
-- `events`: standard ERC-20 and ERC-721 transfers and approvals, plus operator approvals. Event addresses, token IDs, log indices and raw amounts preserve exact values as strings.
-- `input`: candidate standard ABI selector decoding, not a verified contract ABI or proof that an operation executed.
-- `tokenMetadata`: optional historical `eth_call` results at the receipt block. No guessing of symbol or decimals when metadata is unavailable.
+- `events`: standard ERC-20 and ERC-721 transfers and approvals, operator approvals, and the known RobinhoodBurner `Burned` event. Event addresses, token IDs, log indices and raw amounts preserve exact values as strings.
+- `input`: candidate standard ABI selector decoding or the known RobinhoodBurner `burn(address,uint256)` call. Calldata alone does not prove that an operation executed.
+- `transactionType` and `burn`: a burn to the dead address is reported only when the known burner calldata, its `Burned` event, and the ERC-20 transfer agree. This does not prove the token's `totalSupply` decreased.
+- `tokenMetadata`: historical `eth_call` results at the receipt block when available. If the RPC lacks historical state, a current-state read supplies symbol and decimals with explicit `current_eth_call_fallback` provenance and a warning that decimals may have changed. Raw amounts are always retained.
 - `fee`: `receipt.gasUsed * receipt.effectiveGasPrice` in wei and ETH. This is the receipt-derived fee, not a fiat quote or separately added L1 estimate. Zero-fee system transactions remain zero.
 - `confirmations`: observed L2 head distance, not finality. `finality` reports the configured RPC's `finalized` tag when available; it is not an independent settlement proof.
 - `coverage`, `warnings`: disclose omitted logs, unavailable metadata and unsupported behavior.
 - `explanation`: deterministic prose derived from these same fields. No hallucinated swap intent, protocol identities, token prices or revert reasons.
 
-Internal transfers, traces, arbitrary contract ABIs, ERC-1155, current allowances, full balance deltas, USD prices and contract risk assessments are outside v1 coverage. Contracts can emit misleading events or metadata; decoded event shapes do not certify contract compliance or token authenticity. All downstream consumers must treat metadata as untrusted text.
+Internal transfers, traces, arbitrary contract ABIs beyond the known RobinhoodBurner, ERC-1155, current allowances, full balance deltas, USD prices and contract risk assessments are outside coverage. Contracts can emit misleading events or metadata; decoded event shapes do not certify contract compliance or token authenticity. All downstream consumers must treat metadata as untrusted text.
 
 ## Deployment
 

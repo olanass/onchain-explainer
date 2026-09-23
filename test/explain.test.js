@@ -2,7 +2,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { zeroPadValue, toBeHex, id } = require('ethers');
-const { explain, abi } = require('../lib/explain');
+const { explain, abi, burnerAbi } = require('../lib/explain');
 const HASH = '0x' + 'ab'.repeat(32), BLOCK = '0x' + 'cd'.repeat(32);
 const FROM = '0x' + '11'.repeat(20), TO = '0x' + '22'.repeat(20), TOKEN = '0x' + '33'.repeat(20);
 const word = n => zeroPadValue(toBeHex(n), 32);
@@ -74,6 +74,42 @@ test('metadata failure leaves raw amounts and never assumes 18 decimals', async 
   assert.equal(result.events[0].decimals, null);
   assert.equal(result.events[0].amount, undefined);
   assert.ok(result.warnings.some(warning => warning.includes('not guessed')));
+});
+test('known RobinhoodBurner call reports exact display amount from clearly sourced current metadata', async () => {
+  const burner = '0x6Bf43Ca706FAa8EA46803299C191484e82280652';
+  const dead = '0x000000000000000000000000000000000000dEaD';
+  const amount = 10000000820628601544741454n;
+  const burned = burnerAbi.encodeEventLog(burnerAbi.getEvent('Burned'), [212, FROM, TOKEN, amount]);
+  const env = fixture({ tx: { to: burner, from: FROM, input: burnerAbi.encodeFunctionData('burn', [TOKEN, amount]) },
+    receipt: { logs: [event('Transfer', [FROM, dead, amount]), { address: burner, ...burned, logIndex: '0x1' }] } });
+  const originalRpc = env.rpc;
+  env.rpc = async (method, params = []) => {
+    if (method === 'eth_call') {
+      if (params[1] === '0x64') throw Error('historical state unavailable');
+      return params[0].data === abi.encodeFunctionData('symbol') ? abi.encodeFunctionResult('symbol', ['OLANAS']) : abi.encodeFunctionResult('decimals', [18]);
+    }
+    return originalRpc(method, params);
+  };
+  const result = await explain(request, env);
+  assert.equal(result.schemaVersion, '1.1');
+  assert.equal(result.transactionType, 'token_burn_to_dead_address');
+  assert.equal(result.burn.amount, '10000000.820628601544741454');
+  assert.equal(result.burn.symbol, 'OLANAS');
+  assert.equal(result.burn.supplyEffect, 'not_verified');
+  assert.equal(result.events[0].amount, result.burn.amount);
+  assert.equal(result.coverage.omittedLogs, 0);
+  assert.equal(result.tokenMetadata[0].decimalsSource, 'current_eth_call_fallback');
+  assert.ok(result.warnings.some(warning => warning.includes('Current token metadata')));
+  assert.match(result.explanation, /token burn to a dead address/);
+  assert.match(result.explanation, /10000000\.820628601544741454 OLANAS/);
+});
+test('burn classification requires the matching dead-address transfer', async () => {
+  const burner = '0x6Bf43Ca706FAa8EA46803299C191484e82280652';
+  const burned = burnerAbi.encodeEventLog(burnerAbi.getEvent('Burned'), [212, FROM, TOKEN, 10]);
+  const result = await explain(request, fixture({ tx: { to: burner, from: FROM, input: burnerAbi.encodeFunctionData('burn', [TOKEN, 10]) },
+    receipt: { logs: [event('Transfer', [FROM, TO, 10]), { address: burner, ...burned, logIndex: '0x1' }] } }));
+  assert.equal(result.transactionType, null);
+  assert.equal(result.burn, null);
 });
 test('chain mismatches, reorgs and mismatched receipts fail explicitly', async () => {
   await assert.rejects(explain(request, fixture({ chainId: '0x1' })), { code: 'RPC_CHAIN_MISMATCH' });
