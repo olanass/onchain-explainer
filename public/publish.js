@@ -52,7 +52,7 @@ button.addEventListener('click', async () => {
     const timestamp = String(Date.now());
     const payload = {
       name: 'Olanas Onchain Explainer', description: DESCRIPTION, category: 'Developer Tools', videoUrl: '',
-      logoHash: '', openapiHash, endpointUrl: endpoint, allowedMethods: ['POST'], price: '0.01', currency: 'USDG',
+      logoHash: '', openapiHash, endpointUrl: endpoint, allowedMethods: ['POST'], price: '10', currency: 'OLANAS',
       creatorAddress: CREATOR.toLowerCase(), payoutAddress: CREATOR.toLowerCase(), network: 'robinhood-chain', chainId: 4663, timestamp
     };
     const message = 'x402 launch service\n' + JSON.stringify(payload);

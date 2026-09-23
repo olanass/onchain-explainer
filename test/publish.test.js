@@ -19,7 +19,7 @@ async function browserFixture({ account = creator, existing = false } = {}) {
     if (method === 'personal_sign') { signedMessage = Buffer.from(params[0].slice(2), 'hex').toString(); return 'test-signature'; }
     throw new Error('Unexpected wallet method');
   } };
-  const service = { name: 'Olanas Onchain Explainer', slug: 'olanas-onchain-explainer', price: '0.01', currency: 'USDG', gatewayUrl: 'https://olanas.xyz/x402/olanas-onchain-explainer' };
+  const service = { name: 'Olanas Onchain Explainer', slug: 'olanas-onchain-explainer', price: '10', currency: 'OLANAS', gatewayUrl: 'https://olanas.xyz/x402/olanas-onchain-explainer' };
   const context = { document: { getElementById: element, createElement: () => ({}) }, window: { ethereum: provider, addEventListener() {}, dispatchEvent() {} }, Event: class {}, location: { origin: 'https://explainer.example' }, crypto: webcrypto, TextEncoder,
     fetch: async (url, options) => {
       calls.push({ url, options });
@@ -38,11 +38,11 @@ test('creator helper signs the exact platform payload with gateway-relative Open
   const fixture = await browserFixture();
   await fixture.element('publish').events.click();
   const posted = JSON.parse(fixture.calls.find(call => call.url === 'https://olanas.xyz/api/services').options.body);
-  assert.equal(posted.price, '0.01'); assert.equal(posted.currency, 'USDG');
+  assert.equal(posted.price, '10'); assert.equal(posted.currency, 'OLANAS');
   assert.equal(posted.creatorAddress, creator.toLowerCase()); assert.equal(posted.payoutAddress, creator.toLowerCase());
   assert.deepEqual(Object.keys(posted.openapiDocument.paths), ['/']);
   assert.equal(posted.openapiHash, createHash('sha256').update(JSON.stringify(posted.openapiDocument)).digest('hex'));
-  const expected = { name: posted.name, description: posted.description, category: posted.category, videoUrl: '', logoHash: '', openapiHash: posted.openapiHash, endpointUrl: 'https://explainer.example/v1/transactions/explain', allowedMethods: ['POST'], price: '0.01', currency: 'USDG', creatorAddress: creator.toLowerCase(), payoutAddress: creator.toLowerCase(), network: 'robinhood-chain', chainId: 4663, timestamp: posted.creatorTimestamp };
+  const expected = { name: posted.name, description: posted.description, category: posted.category, videoUrl: '', logoHash: '', openapiHash: posted.openapiHash, endpointUrl: 'https://explainer.example/v1/transactions/explain', allowedMethods: ['POST'], price: '10', currency: 'OLANAS', creatorAddress: creator.toLowerCase(), payoutAddress: creator.toLowerCase(), network: 'robinhood-chain', chainId: 4663, timestamp: posted.creatorTimestamp };
   assert.equal(fixture.signed(), 'x402 launch service\n' + JSON.stringify(expected));
   assert.equal(fixture.element('listing').href, 'https://olanas.xyz/services/olanas-onchain-explainer');
 });

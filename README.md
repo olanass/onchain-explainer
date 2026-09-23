@@ -57,7 +57,7 @@ Open `/publish` on the deployed origin in a browser with the Startup Pitch Score
 
 - Name: **Olanas Onchain Explainer**
 - Category: Developer Tools
-- Price: **0.01 USDG** per request
+- Price: **10 OLANAS** per request
 - Creator and payout: `0x2ab4e66D85B1df361a2d51Fd20456c4330EF9AB5`
 - Network: Robinhood Chain, ID 4663
 - Upstream: this origin's `/v1/transactions/explain`
