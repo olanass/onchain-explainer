@@ -1,0 +1,80 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Olanas Onchain Explainer",
+    "version": "1.0.0",
+    "description": "Explain Robinhood Chain mainnet transactions using RPC receipts and standard ABI decoding. Read-only: never signs, sends, or simulates transactions. Internal calls, ERC-1155 and arbitrary ABIs are not decoded. Token events are contract-reported evidence, not verified balance deltas."
+  },
+  "paths": {
+    "/v1/transactions/explain": {
+      "post": {
+        "operationId": "explain_transaction",
+        "summary": "Explain a Robinhood Chain transaction",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": {
+            "schema": { "$ref": "#/components/schemas/ExplainRequest" },
+            "example": { "transactionHash": "0xd05d44a5c4f4d56911899c611d3fed36a555467f3bf5e58349da9179eebadcd2", "chainId": 4663 }
+          } }
+        },
+        "responses": {
+          "200": { "description": "Evidence-based explanation. Check status, coverage and warnings; pending is not completed.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Explanation" } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "413": { "$ref": "#/components/responses/TooLarge" },
+          "415": { "$ref": "#/components/responses/MediaType" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "500": { "$ref": "#/components/responses/InternalError" },
+          "502": { "$ref": "#/components/responses/UpstreamError" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ExplainRequest": {
+        "type": "object", "additionalProperties": false, "required": ["transactionHash"],
+        "properties": {
+          "transactionHash": { "type": "string", "pattern": "^0x[0-9a-fA-F]{64}$", "description": "Transaction hash on Robinhood Chain mainnet." },
+          "chainId": { "type": "integer", "enum": [4663], "default": 4663 }
+        }
+      },
+      "Explanation": {
+        "type": "object", "required": ["schemaVersion", "chain", "transactionHash", "status", "explanation", "events", "coverage", "warnings"],
+        "properties": {
+          "schemaVersion": { "type": "string", "enum": ["1.0"] },
+          "chain": { "type": "object", "properties": { "id": { "type": "integer", "enum": [4663] }, "name": { "type": "string" }, "nativeCurrency": { "type": "string" } } },
+          "transactionHash": { "type": "string" }, "explorerUrl": { "type": "string", "format": "uri" },
+          "fetchedAt": { "type": "string", "format": "date-time" }, "requestId": { "type": "string" },
+          "status": { "type": "string", "enum": ["pending", "success", "reverted"] },
+          "from": { "type": "string" }, "to": { "type": "string", "nullable": true },
+          "block": { "type": "object", "nullable": true, "properties": { "number": { "type": "string" }, "hash": { "type": "string" }, "timestamp": { "type": "string", "format": "date-time" } } },
+          "confirmations": { "type": "string", "nullable": true, "description": "Observed L2 head minus inclusion height plus one; not a finality guarantee." },
+          "finality": { "type": "object", "properties": { "status": { "type": "string", "enum": ["unknown", "not_finalized", "finalized"] }, "source": { "type": "string", "nullable": true }, "finalizedBlock": { "type": "string" } } },
+          "fee": { "type": "object", "nullable": true, "properties": { "gasUsed": { "type": "string" }, "effectiveGasPriceWei": { "type": "string" }, "amountWei": { "type": "string" }, "amountEth": { "type": "string" }, "calculation": { "type": "string" } } },
+          "nativeValue": { "type": "object", "properties": { "rawAmount": { "type": "string" }, "amount": { "type": "string" }, "symbol": { "type": "string" }, "effect": { "type": "string", "enum": ["not_confirmed", "executed_top_level_value", "reverted"] }, "scope": { "type": "string" } } },
+          "contractCreated": { "type": "string", "nullable": true },
+          "input": { "type": "object", "nullable": true, "description": "Standard selector candidate only; no verified arbitrary contract ABI.", "properties": { "selector": { "type": "string" }, "decoded": { "type": "boolean" }, "candidateFunction": { "type": "string" }, "arguments": { "type": "array", "items": { "type": "object" } }, "interpretation": { "type": "string" } } },
+          "events": { "type": "array", "items": { "type": "object", "required": ["type", "contract", "logIndex", "evidence"], "properties": { "type": { "type": "string", "enum": ["erc20_transfer", "erc20_approval", "erc721_transfer", "erc721_approval", "operator_approval"] }, "contract": { "type": "string" }, "logIndex": { "type": "string" }, "evidence": { "type": "string" }, "rawAmount": { "type": "string" }, "rawAllowance": { "type": "string" }, "amount": { "type": "string" }, "allowance": { "type": "string" }, "symbol": { "type": "string", "nullable": true }, "decimals": { "type": "integer", "nullable": true }, "from": { "type": "string" }, "to": { "type": "string" }, "owner": { "type": "string" }, "spender": { "type": "string" }, "operator": { "type": "string" }, "approved": { "type": "boolean" }, "unlimited": { "type": "boolean" }, "tokenId": { "type": "string" } } } },
+          "tokenMetadata": { "type": "array", "items": { "type": "object" } },
+          "coverage": { "type": "object", "properties": { "receiptLogs": { "type": "integer" }, "decodedLogs": { "type": "integer" }, "omittedLogs": { "type": "integer" }, "internalTransfers": { "type": "boolean" }, "arbitraryContractAbi": { "type": "boolean" }, "currentAllowances": { "type": "boolean" } } },
+          "warnings": { "type": "array", "items": { "type": "string" } }, "explanation": { "type": "string" }
+        }
+      },
+      "Error": { "type": "object", "required": ["error"], "properties": { "error": { "type": "object", "required": ["code", "message"], "properties": { "code": { "type": "string" }, "message": { "type": "string" } } }, "requestId": { "type": "string" } } }
+    },
+    "responses": {
+      "BadRequest": { "description": "Invalid JSON, hash, chain or request fields.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+      "Unauthorized": { "description": "Bearer token required when configured.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+      "NotFound": { "description": "Transaction not found on this chain.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+      "TooLarge": { "description": "Request exceeds 4096 bytes.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+      "MediaType": { "description": "Use application/json.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+      "RateLimited": { "description": "Rate limited; honor Retry-After.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+      "InternalError": { "description": "Unexpected service error.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+      "UpstreamError": { "description": "Malformed or inconsistent RPC data.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+      "Unavailable": { "description": "RPC unavailable, chain mismatch, temporary reorg, receipt unavailable or capacity limit. Retry later.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+    }
+  }
+}
