@@ -2,6 +2,10 @@
 
 A read-only backend that explains Robinhood Chain mainnet transactions using actual RPC data. No LLM, private key, signing, simulation, or transaction submission is involved.
 
+Live backend: **https://onchain-explainer.vercel.app** · [OpenAPI](https://onchain-explainer.vercel.app/openapi.json) · [Creator publication](https://onchain-explainer.vercel.app/publish)
+
+The Vercel project is connected to this repository. Pushes to `main` deploy to production. The Olanas marketplace listing is a separate, creator-signed registration step.
+
 ## Run
 
 Requires Node.js 22. Run `npm ci`, `npm test`, and `npm start`. The local server listens on `http://127.0.0.1:4030`.

@@ -1,0 +1,9 @@
+.npm-cache/
+node_modules/
+.env
+.env.*
+test/
+scripts/
+.github/
+coverage/
+*.log
